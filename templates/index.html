@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Football Predictor</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background: #f5f5f5; }
+        .container { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { color: #2c3e50; text-align: center; margin-bottom: 30px; }
+        .input-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: #34495e; }
+        input[type="url"] { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 5px; font-size: 16px; }
+        button { background: #3498db; color: white; padding: 12px 24px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; margin-right: 10px; }
+        button:hover { background: #2980b9; }
+        button:disabled { background: #bdc3c7; cursor: not-allowed; }
+        .result { margin-top: 30px; padding: 20px; border-radius: 5px; display: none; }
+        .success { background: #d5f4e6; border: 1px solid #27ae60; }
+        .error { background: #fadbd8; border: 1px solid #e74c3c; }
+        .loading { text-align: center; color: #7f8c8d; }
+        .prediction { margin-top: 20px; }
+        .prob-bar { background: #ecf0f1; height: 30px; border-radius: 15px; margin: 10px 0; overflow: hidden; }
+        .prob-fill { height: 100%; background: linear-gradient(90deg, #3498db, #2ecc71); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; }
+        .recommendation { background: #e8f6f3; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #27ae60; }
+        .learn-section { margin-top: 20px; padding: 15px; background: #fef9e7; border-radius: 5px; border-left: 4px solid #f39c12; }
+        .learn-buttons { margin-top: 10px; }
+        .learn-btn { background: #f39c12; padding: 8px 16px; margin-right: 5px; font-size: 14px; }
+        .learn-btn:hover { background: #e67e22; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⚽ Football Match Predictor</h1>
+        
+        <div class="input-group">
+            <label for="url">Forebet Match URL:</label>
+            <input type="url" id="url" placeholder="https://www.forebet.com/en/football/matches/team1-team2-12345" />
+        </div>
+        
+        <button onclick="predict()" id="predictBtn">🔮 Predict Match</button>
+        
+        <div id="result" class="result">
+            <div id="loading" class="loading" style="display: none;">
+                <p>🔄 Analyzing match data...</p>
+            </div>
+            
+            <div id="prediction" class="prediction" style="display: none;">
+                <h3>📊 Match Probabilities</h3>
+                <div id="probabilities"></div>
+                
+                <div id="recommendation" class="recommendation"></div>
+                
+                <div id="learnSection" class="learn-section" style="display: none;">
+                    <h4>📚 Manual Learning</h4>
+                    <p>Help improve predictions by adding the actual result:</p>
+                    <div class="learn-buttons">
+                        <button class="learn-btn" onclick="learn('H')">🏠 Home Win</button>
+                        <button class="learn-btn" onclick="learn('A')">🛣️ Away Win</button>
+                        <button class="learn-btn" onclick="learn('D')">🤝 Draw</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="error" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentUrl = '';
+        
+        async function predict() {
+            const url = document.getElementById('url').value;
+            if (!url) {
+                alert('Please enter a Forebet URL');
+                return;
+            }
+            
+            currentUrl = url;
+            const resultDiv = document.getElementById('result');
+            const loading = document.getElementById('loading');
+            const prediction = document.getElementById('prediction');
+            const error = document.getElementById('error');
+            const btn = document.getElementById('predictBtn');
+            
+            // Show loading
+            resultDiv.style.display = 'block';
+            loading.style.display = 'block';
+            prediction.style.display = 'none';
+            error.style.display = 'none';
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayPrediction(data);
+                } else {
+                    showError(data.error || 'Prediction failed');
+                }
+            } catch (err) {
+                showError('Network error: ' + err.message);
+            } finally {
+                loading.style.display = 'none';
+                btn.disabled = false;
+            }
+        }
+        
+        function displayPrediction(data) {
+            const prediction = document.getElementById('prediction');
+            const probabilities = document.getElementById('probabilities');
+            const recommendation = document.getElementById('recommendation');
+            const learnSection = document.getElementById('learnSection');
+            
+            const pred = data.prediction;
+            const match = data.match;
+            
+            // Create probability bars with team names
+            probabilities.innerHTML = `
+                <div>
+                    <strong>${match.home_team} Win:</strong>
+                    <div class="prob-bar">
+                        <div class="prob-fill" style="width: ${pred.home_prob}%">${pred.home_prob}%</div>
+                    </div>
+                </div>
+                <div>
+                    <strong>Draw:</strong>
+                    <div class="prob-bar">
+                        <div class="prob-fill" style="width: ${pred.draw_prob}%">${pred.draw_prob}%</div>
+                    </div>
+                </div>
+                <div>
+                    <strong>${match.away_team} Win:</strong>
+                    <div class="prob-bar">
+                        <div class="prob-fill" style="width: ${pred.away_prob}%">${pred.away_prob}%</div>
+                    </div>
+                </div>
+            `;
+            
+            // Show recommendation with team names
+            const betMap = {
+                'HOME_WIN': `🏠 ${match.home_team} Win`,
+                'AWAY_WIN': `🛣️ ${match.away_team} Win`,
+                'DRAW': '🤝 Draw'
+            };
+            
+            recommendation.innerHTML = `
+                <h4>🎯 Recommendation</h4>
+                <p><strong>Match:</strong> ${match.home_team} vs ${match.away_team}</p>
+                <p><strong>Bet:</strong> ${betMap[pred.recommended_bet] || pred.recommended_bet}</p>
+                <p><strong>Confidence:</strong> ${pred.confidence}</p>
+                <p><strong>Reasoning:</strong> ${pred.reasoning.join(', ')}</p>
+            `;
+            
+            prediction.style.display = 'block';
+            learnSection.style.display = 'block';
+        }
+        
+        function showError(message) {
+            const error = document.getElementById('error');
+            error.innerHTML = `<p style="color: #e74c3c;">❌ Error: ${message}</p>`;
+            error.style.display = 'block';
+        }
+        
+        async function learn(result) {
+            if (!currentUrl) return;
+            
+            try {
+                const response = await fetch('/learn', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: currentUrl, result: result })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('✅ Result recorded for learning!');
+                } else {
+                    alert('❌ Failed to record result: ' + data.error);
+                }
+            } catch (err) {
+                alert('❌ Network error: ' + err.message);
+            }
+        }
+        
+        // Allow Enter key to trigger prediction
+        document.getElementById('url').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                predict();
+            }
+        });
+    </script>
+</body>
+</html>
